@@ -25,6 +25,7 @@ mod benchmarking;
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
+	use sp_std::prelude::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -33,6 +34,9 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: crate::weights::WeightInfo;
+
+		#[pallet::constant]
+		type MaxLength: Get<u32>;
 	}
 
 	#[pallet::pallet]
@@ -41,7 +45,7 @@ pub mod pallet {
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
 	#[pallet::storage]
-	pub(super) type Claims<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, (T::AccountId, BlockNumberFor<T>)>;
+	pub(super) type Claims<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, (T::AccountId, BoundedVec<u8, T::MaxLength>)>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -63,6 +67,8 @@ pub mod pallet {
 		NoSuchClaim,
 		/// The claim is owned by another account, so caller can't revoke it.
 		NotClaimOwner,
+		/// A name is too long.
+		TooLong,		
 	}
 
 	#[pallet::hooks]
@@ -77,7 +83,7 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[pallet::weight(Weight::default())]
 		#[pallet::call_index(0)]
-		pub fn create_claim(origin: OriginFor<T>, claim: T::Hash) -> DispatchResult {
+		pub fn create_claim(origin: OriginFor<T>, claim: T::Hash, asset_url: Vec<u8>) -> DispatchResult {
 		  // Check that the extrinsic was signed and get the signer.
 		  // This function will return an error if the extrinsic is not signed.
 		  let sender = ensure_signed(origin)?;
@@ -88,8 +94,10 @@ pub mod pallet {
 		  // Get the block number from the FRAME System pallet.
 		  let current_block = <frame_system::Pallet<T>>::block_number();
 	   
+		  let bounded_name: BoundedVec<_, _> = asset_url.try_into().map_err(|_| Error::<T>::TooLong)?;
+
 		  // Store the claim with the sender and block number.
-		  Claims::<T>::insert(&claim, (&sender, current_block));
+		  Claims::<T>::insert(&claim, (&sender, bounded_name));
 	   
 		  // Emit an event that the claim was created.
 		  Self::deposit_event(Event::ClaimCreated { who: sender, claim });

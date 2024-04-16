@@ -251,7 +251,7 @@ construct_runtime!(
 		MessageQueue: pallet_message_queue = 33,
 
 		// Template
-		TemplatePallet: pallet_cortex = 50,
+		Cortex: pallet_cortex = 50,
 		// Template
 		// TemplatePallet: pallet_parachain_template = 50,
 	}

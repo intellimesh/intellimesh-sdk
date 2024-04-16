@@ -308,4 +308,5 @@ impl pallet_collator_selection::Config for Runtime {
 impl pallet_cortex::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_cortex::weights::SubstrateWeight<Runtime>;
+	type MaxLength = ConstU32<64>;
 }
