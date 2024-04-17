@@ -7,7 +7,7 @@ repository = "https://github.com/paritytech/polkadot-sdk.git"
 [workspace]
 members = [
     "node",
-    "pallets/cortex",
+    "pallets/cortex-vision",
     "runtime",
 ]
 

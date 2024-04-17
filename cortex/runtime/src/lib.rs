@@ -38,7 +38,7 @@ pub use sp_runtime::BuildStorage;
 use weights::ExtrinsicBaseWeight;
 
 /// Import the cortex pallet.
-pub use pallet_cortex;
+pub use pallet_cortex_vision;
 
 /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
 pub type Signature = MultiSignature;
@@ -251,7 +251,7 @@ construct_runtime!(
 		MessageQueue: pallet_message_queue = 33,
 
 		// Template
-		Cortex: pallet_cortex = 50,
+		CortexVision: pallet_cortex_vision = 50,
 		// Template
 		// TemplatePallet: pallet_parachain_template = 50,
 	}

@@ -1,5 +1,5 @@
 [package]
-name = "pallet-cortex"
+name = "pallet-cortex-vision"
 description = "FRAME pallet for cortex runtime logic."
 version = "0.0.0"
 license = "MIT-0"

@@ -305,8 +305,8 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 /// Configure the pallet cortex in pallets/cortex.
-impl pallet_cortex::Config for Runtime {
+impl pallet_cortex_vision::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_cortex::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_cortex_vision::weights::SubstrateWeight<Runtime>;
 	type MaxLength = ConstU32<64>;
 }

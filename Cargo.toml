@@ -524,7 +524,7 @@ members = [
 	"templates/parachain/runtime",
 	
 	"cortex/node",
-	"cortex/pallets/cortex",
+	"cortex/pallets/cortex-vision",
 	"cortex/runtime",
 ]
 
