@@ -8,6 +8,7 @@ repository = "https://github.com/paritytech/polkadot-sdk.git"
 members = [
     "node",
     "pallets/cortex-vision",
+    "pallets/cortex-guardian",    
     "runtime",
 ]
 
