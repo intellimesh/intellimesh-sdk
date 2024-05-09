@@ -1,4 +1,4 @@
-use frame_support::{derive_impl, parameter_types, traits::Everything};
+use frame_support::{derive_impl, parameter_types, traits::{ ConstU32, Everything }};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -52,6 +52,10 @@ impl system::Config for Test {
 impl crate::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
+	type MaxLength = ConstU32<64>;
+	type ConnectionId = u32;
+	type CognitoId = u32;
+	type PerceptId = u32;		
 }
 
 // Build genesis storage according to the mock runtime.

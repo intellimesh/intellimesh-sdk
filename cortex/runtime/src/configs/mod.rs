@@ -309,4 +309,7 @@ impl pallet_cortex_vision::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_cortex_vision::weights::SubstrateWeight<Runtime>;
 	type MaxLength = ConstU32<64>;
+	type ConnectionId = u32;
+	type CognitoId = u32;
+	type PerceptId = u32;	
 }
