@@ -8,7 +8,7 @@ fn it_works_for_default_value() {
 	new_test_ext().execute_with(|| {
 		// Dispatch a signed extrinsic.
 		let test_val: frame_support::BoundedVec<u8, ConstU32<64>> = (*b"TEST").to_vec().try_into().unwrap();
-		assert_ok!(TemplateModule::create_percept(RuntimeOrigin::signed(1)));
+		assert_ok!(TemplateModule::create_percept(RuntimeOrigin::signed(1), 1_u32, 1_u32));
 		// Read pallet storage and assert an expected result.
 
 		//assert_eq!(Percepts::<Test>::get(1_u32), Some(PerceptDetails{owner: 1_u64}));

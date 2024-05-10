@@ -55,7 +55,12 @@ impl crate::Config for Test {
 	type MaxLength = ConstU32<64>;
 	type ConnectionId = u32;
 	type CognitoId = u32;
-	type PerceptId = u32;		
+	type CognitoStatus = u32;
+	type CognitoCaps = u32;	
+	type PerceptId = u32;
+	type PerceptStatus = u32;
+	type PerceptCaps = u32;	
+
 }
 
 // Build genesis storage according to the mock runtime.

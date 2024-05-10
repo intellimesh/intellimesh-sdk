@@ -30,6 +30,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_std::prelude::*;
 	use frame_support::traits::{ EnsureOriginWithArg, Incrementable,};
+	//use types::ConnectionDetails;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -45,7 +46,10 @@ pub mod pallet {
 		type ConnectionId: Member + Parameter + MaxEncodedLen + Copy + Incrementable;
 		type PerceptId: Member + Parameter + MaxEncodedLen + Copy + Incrementable;
 		type CognitoId: Member + Parameter + MaxEncodedLen + Copy + Incrementable;
-
+		type CognitoStatus: Member + Parameter + MaxEncodedLen + Copy;
+		type CognitoCaps: Member + Parameter + MaxEncodedLen + Copy;
+		type PerceptStatus: Member + Parameter + MaxEncodedLen + Copy;
+		type PerceptCaps: Member + Parameter + MaxEncodedLen + Copy;
 	}
 
 	#[pallet::pallet]
@@ -54,19 +58,20 @@ pub mod pallet {
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
 	#[pallet::storage]
-	pub(super) type Percepts<T: Config> = StorageDoubleMap<_, Blake2_128Concat, T::PerceptId, Blake2_128Concat, T::AccountId, PerceptDetails<T::AccountId>>;
+	pub(super) type Percepts<T: Config> = StorageDoubleMap<_, Blake2_128Concat,  T::AccountId, Blake2_128Concat, T::PerceptId, PerceptDetails<T::PerceptStatus, T::PerceptCaps>>;
 
 	#[pallet::storage]
 	pub(super) type NextPerceptId<T: Config> = StorageValue<_, T::PerceptId, OptionQuery>;
 
 	#[pallet::storage]
-	pub(super) type Cognitos<T: Config> = StorageDoubleMap<_, Blake2_128Concat, T::CognitoId, Blake2_128Concat, T::AccountId, CognitoDetails<T::AccountId>>;
+	pub(super) type Cognitos<T: Config> = StorageDoubleMap<_, Blake2_128Concat, T::AccountId, Blake2_128Concat,  T::CognitoId, CognitoDetails<T::CognitoStatus, T::CognitoCaps>>;
 
 	#[pallet::storage]
 	pub(super) type NextCognitoId<T: Config> = StorageValue<_, T::CognitoId, OptionQuery>;
 
 	#[pallet::storage]
-	pub(super) type Connections<T: Config> = StorageDoubleMap<_, Blake2_128Concat, T::CognitoId, Blake2_128Concat, T::PerceptId, ConnectionDetails<T::AccountId, T::ConnectionId, BlockNumberFor<T>>>;
+	pub(super) type Connections<T: Config> = StorageDoubleMap<_, Blake2_128Concat, T::PerceptId, Blake2_128Concat, T::CognitoId, 
+		ConnectionDetails<T::AccountId, T::ConnectionId, BlockNumberFor<T>, T::Hash>>;
 
 	#[pallet::storage]
 	pub(super) type NextConnectionId<T: Config> = StorageValue<_, T::ConnectionId, OptionQuery>;
@@ -86,7 +91,7 @@ pub mod pallet {
 
 		ConnectionCreated { who: T::AccountId, connection_id: T::ConnectionId },
 		ConnectionRevoked { who: T::AccountId, connection_id: T::ConnectionId },
-
+		ConnectionUpdated { who: T::AccountId, connection_id: T::ConnectionId },
 	}
 
 	// Errors inform users that something went wrong.
@@ -102,6 +107,10 @@ pub mod pallet {
 		TooLong,		
 		/// Unknown Percept
 		UnknownPercept,
+		/// Unknown Connection
+		UnknownConnection,
+		// Value does not exist
+		DoesNotExist,
 	}
 
 	#[pallet::hooks]
@@ -116,7 +125,7 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[pallet::weight(Weight::default())]
 		#[pallet::call_index(0)]
-		pub fn create_percept(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create_percept(origin: OriginFor<T>, status: T::PerceptStatus, caps: T::PerceptCaps) -> DispatchResult {
 
 		  let percept_id = NextPerceptId::<T>::get()
 			.or(T::PerceptId::initial_value())
@@ -127,13 +136,13 @@ pub mod pallet {
 		  let sender = ensure_signed(origin)?;
 	   
 		  // Verify that the specified claim has not already been stored.
-		  ensure!(!Percepts::<T>::contains_key(percept_id, sender.clone()), Error::<T>::AlreadyCreated);
+		  ensure!(!Percepts::<T>::contains_key(sender.clone(), percept_id), Error::<T>::AlreadyCreated);
 	   
 		  // Get the block number from the FRAME System pallet.
 		  let current_block = <frame_system::Pallet<T>>::block_number();
 	   
 		  // Store the claim with the sender and block number.
-		  Percepts::<T>::insert(&percept_id, sender.clone(), PerceptDetails{owner: sender.clone()});
+		  Percepts::<T>::insert(sender.clone(), percept_id, PerceptDetails{status: status, caps: caps});
 	   
 		  // Emit an event that the claim was created.
 		  Self::deposit_event(Event::PerceptCreated { who: sender, percept_id });
@@ -148,13 +157,10 @@ pub mod pallet {
 		  let sender = ensure_signed(origin)?;
 	   
 		  // Get owner of the claim, if none return an error.
-		  let percept_details = Percepts::<T>::get(percept_id, sender.clone()).ok_or(Error::<T>::NoSuchNode)?;
-	   
-		  // Verify that sender of the current call is the claim owner.
-		  ensure!(sender == percept_details.owner, Error::<T>::NotOwner);
-	   
+		  let percept_details = Percepts::<T>::get(sender.clone(), percept_id).ok_or(Error::<T>::NoSuchNode)?;
+	   	   
 		  // Remove claim from storage.
-		  Percepts::<T>::remove(&percept_id, sender.clone());
+		  Percepts::<T>::remove(sender.clone(), percept_id);
 	   
 		  // Emit an event that the claim was erased.
 		  Self::deposit_event(Event::PerceptRevoked { who: sender, percept_id });
@@ -167,16 +173,16 @@ pub mod pallet {
 
 		#[pallet::weight(Weight::default())]
 		#[pallet::call_index(3)]
-		pub fn create_cognito(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create_cognito(origin: OriginFor<T>, status: T::CognitoStatus, caps: T::CognitoCaps) -> DispatchResult {
 		
-		let cognito_id: <T as Config>::CognitoId = NextCognitoId::<T>::get()
+		  let cognito_id: <T as Config>::CognitoId = NextCognitoId::<T>::get()
 			.or(T::CognitoId::initial_value())
 			.ok_or(Error::<T>::UnknownPercept)?;
 
 		  let sender = ensure_signed(origin)?;
-		  ensure!(!Cognitos::<T>::contains_key(cognito_id, sender.clone()), Error::<T>::AlreadyCreated);	   
+		  ensure!(!Cognitos::<T>::contains_key(sender.clone(), cognito_id), Error::<T>::AlreadyCreated);	   
 		  let current_block = <frame_system::Pallet<T>>::block_number();
-		  Cognitos::<T>::insert(&cognito_id, sender.clone(), CognitoDetails{owner: sender.clone()});
+		  Cognitos::<T>::insert(sender.clone(), cognito_id, CognitoDetails{status: status, caps: caps});
 	
 		  // Emit an event that the claim was created.
 		  Self::deposit_event(Event::CognitoCreated { who: sender, cognito_id });
@@ -190,9 +196,8 @@ pub mod pallet {
 		#[pallet::call_index(4)]
 		pub fn revoke_cognito(origin: OriginFor<T>, cognito_id: T::CognitoId) -> DispatchResult {
 		  let sender = ensure_signed(origin)?;
-		  let cognito_details = Cognitos::<T>::get(cognito_id, sender.clone()).ok_or(Error::<T>::NoSuchNode)?;
-		  ensure!(sender == cognito_details.owner, Error::<T>::NotOwner);
-		  Cognitos::<T>::remove(&cognito_id, sender.clone());
+		  let cognito_details = Cognitos::<T>::get(sender.clone(), cognito_id).ok_or(Error::<T>::NoSuchNode)?;
+		  Cognitos::<T>::remove(sender.clone(), &cognito_id);
 		  Self::deposit_event(Event::CognitoRevoked { who: sender, cognito_id });
 		  Ok(())
 		}	   
@@ -206,10 +211,10 @@ pub mod pallet {
 				.ok_or(Error::<T>::UnknownPercept)?;
 
 		  let sender = ensure_signed(origin)?;
-		  ensure!(!Cognitos::<T>::contains_key(cognito_id, sender.clone()), Error::<T>::AlreadyCreated);	   
+		  ensure!(!Connections::<T>::contains_key(percept_id, cognito_id), Error::<T>::AlreadyCreated);	   
 		  let current_block = <frame_system::Pallet<T>>::block_number();
-		  Connections::<T>::insert(&cognito_id, percept_id, 
-			ConnectionDetails{owner: sender.clone(), connection: connection_id, start_block: current_block});
+		  Connections::<T>::insert(&percept_id, cognito_id, 
+			ConnectionDetails{owner: sender.clone(), connection: connection_id, start_block: current_block, proof: T::Hash::default()});
 	
 		  // Emit an event that the claim was created.
 		  Self::deposit_event(Event::ConnectionCreated { who: sender, connection_id });
@@ -223,11 +228,68 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		pub fn revoke_connection(origin: OriginFor<T>, percept_id: T::PerceptId, cognito_id: T::CognitoId) -> DispatchResult {
 		  let sender = ensure_signed(origin)?;
-		  let connection_details = Connections::<T>::get(cognito_id, percept_id).ok_or(Error::<T>::NoSuchNode)?;
+		  let connection_details = Connections::<T>::get(percept_id, cognito_id).ok_or(Error::<T>::NoSuchNode)?;
 		  ensure!(sender == connection_details.owner, Error::<T>::NotOwner);
-		  Connections::<T>::remove(&cognito_id, percept_id);
+		  Connections::<T>::remove(&percept_id, cognito_id);
 		  Self::deposit_event(Event::ConnectionRevoked { who: sender, connection_id: connection_details.connection });
 		  Ok(())
-		}	  
+		}
+		
+		#[pallet::weight(Weight::default())]
+		#[pallet::call_index(7)]
+		pub fn update_connection_proof(origin: OriginFor<T>, percept_id: T::PerceptId, cognito_id: T::CognitoId, proof: T::Hash) -> DispatchResult {
+		  //let mut connection_id = T::ConnectionId::initial_value().unwrap();
+		  let sender = ensure_signed(origin)?;
+		  
+		  ensure!(Connections::<T>::contains_key(percept_id, cognito_id), Error::<T>::DoesNotExist);	   
+		  Connections::<T>::try_mutate(percept_id, cognito_id, |maybe_details| {
+			let details = maybe_details.as_mut().ok_or(Error::<T>::UnknownConnection)?;
+			ensure!(sender == details.owner, Error::<T>::NotOwner);
+
+			details.proof = proof;
+
+			// Emit an event that the connection was created.
+		  	Self::deposit_event(Event::ConnectionUpdated { who: sender, connection_id: details.connection });
+
+			Ok::<(), Error::<T>>(())
+		  })?;
+		  Ok(())
+		}
 	}
+
+  // Helper functions
+  impl<T: Config> Pallet<T> {
+	pub fn get_connection_details(origin: OriginFor<T>, percept_id: T::PerceptId, cognito_id: T::CognitoId) -> 
+			Result<ConnectionDetails<T::AccountId, T::ConnectionId, BlockNumberFor<T>, T::Hash>, Error<T>> {
+		let details = Connections::<T>::get(percept_id, cognito_id).ok_or(Error::<T>::NoSuchNode)?;
+		Ok(details.clone())
+	}
+
+	pub fn get_percept_details(account_id: T::AccountId, percept_id: T::PerceptId) -> 
+			Result<PerceptDetails<T::PerceptStatus, T::PerceptCaps>, Error<T>> {
+		let details = Percepts::<T>::get(account_id, percept_id).ok_or(Error::<T>::NoSuchNode)?;
+		Ok(details.clone())
+	}
+
+	pub fn get_cognito_details(account_id: T::AccountId, cognito_id: T::CognitoId) -> 
+			Result<CognitoDetails<T::CognitoStatus, T::CognitoCaps>, Error<T>> {
+		let details = Cognitos::<T>::get(account_id, cognito_id).ok_or(Error::<T>::NoSuchNode)?;
+		Ok(details.clone())
+	}
+
+	pub(crate) fn get_percepts(account_id: T::AccountId) -> Result<Vec<T::PerceptId>, Error<T>> {
+	  let results = Percepts::<T>::iter_prefix(&account_id).into_iter().map(
+			|(percept_id, _details)|  { percept_id }
+	  ).collect();
+	  Ok(results)
+	}
+
+	pub(crate) fn get_cognitos(account_id: T::AccountId) -> Result<Vec<T::CognitoId>, Error<T>> {
+  	  let results = Cognitos::<T>::iter_prefix(&account_id).into_iter().map(
+			|(cognito_id, _details)|  { cognito_id }
+	  )  .collect();
+	  Ok(results)
+	}
+	  
+  }
 }

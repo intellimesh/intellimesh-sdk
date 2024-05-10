@@ -1,47 +1,9 @@
-// This file is part of Substrate.
-
-// Copyright (C) Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
 //
-// 	http://www.apache.org/licenses/LICENSE-2.0
+// Maintain escrow 
+// Validate the connections between percetp and cognito using offchain procecssing
+// Start/Pause/Stop connecton
+// Pay cognito for the work performed
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! <!-- markdown-link-check-disable -->
-//! # Offchain Worker Example Pallet
-//!
-//! The Offchain Worker Example: A simple pallet demonstrating
-//! concepts, APIs and structures common to most offchain workers.
-//!
-//! Run `cargo doc --package pallet-example-offchain-worker --open` to view this module's
-//! documentation.
-//!
-//! - [`Config`]
-//! - [`Call`]
-//! - [`Pallet`]
-//!
-//! **This pallet serves as an example showcasing Substrate off-chain worker and is not meant to
-//! be used in production.**
-//!
-//! ## Overview
-//!
-//! In this example we are going to build a very simplistic, naive and definitely NOT
-//! production-ready oracle for BTC/USD price.
-//! Offchain Worker (OCW) will be triggered after every block, fetch the current price
-//! and prepare either signed or unsigned transaction to feed the result back on chain.
-//! The on-chain logic will simply aggregate the results and store last `64` values to compute
-//! the average price.
-//! Additional logic in OCW is put in place to prevent spamming the network with both signed
-//! and unsigned transactions, and custom `UnsignedValidator` makes sure that there is only
-//! one unsigned transaction floating in the network.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -175,7 +137,7 @@ pub mod pallet {
 
 			let should_send = Self::choose_transaction_type(block_number);
 			let res = match should_send {
-				TransactionType::Signed => Self::fetch_analytics_and_send_signed(claim),
+				TransactionType::Signed => Self::process_connections(claim),
 				TransactionType::None => Ok(()),
 			};
 			if let Err(e) = res {
@@ -189,14 +151,13 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
 		#[pallet::weight({0})]
-		pub fn submit_analytics(origin: OriginFor<T>, claim: T::Hash, category: u32) -> DispatchResultWithPostInfo {
+		pub fn process_payments(origin: OriginFor<T>, claim: T::Hash, category: u32) -> DispatchResultWithPostInfo {
 			// Retrieve sender of the transaction.
 			let who = ensure_signed(origin)?;
 			// Add the price to the on-chain list.
-			Self::add_analytics(Some(who), claim, category);
+			Self::submit_payment(Some(who), claim, category);
 			Ok(().into())
 		}
-
 	}
 
 	/// Events for the pallet.
@@ -321,7 +282,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// A helper function to fetch the price and send signed transaction.
-	fn fetch_analytics_and_send_signed(claim: T::Hash) -> Result<(), &'static str> {
+	fn process_connections(claim: T::Hash) -> Result<(), &'static str> {
 		let signer = Signer::<T, T::AuthorityId>::all_accounts();
 		if !signer.can_sign() {
 			return Err(
@@ -329,10 +290,10 @@ impl<T: Config> Pallet<T> {
 			)
 		}
 
-		let category = Self::fetch_analytics(claim).map_err(|_| "Failed to fetch price")?;
+		let category = Self::validate_connections(claim).map_err(|_| "Failed to fetch price")?;
 
 		let results = signer.send_signed_transaction(|_account| {
-			Call::submit_analytics {claim, category }
+			Call::process_payments {claim, category }
 		});
 
 		for (acc, res) in &results {
@@ -346,7 +307,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn send_request(encoded_image: String) -> Result<u32, http::Error> {
-
 	
 		//let json_body = serde_json::to_string(&request_body).expect("Failed to serialize request body");
 	
@@ -384,14 +344,20 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Fetch analytics for a given claim.
-	fn fetch_analytics(claim: T::Hash) -> Result<u32, http::Error> {
+	fn process_connection_requests(claim: T::Hash) -> Result<u32, http::Error> {
+		// todo
+		Ok(0)
+	}
+	
+	/// Fetch analytics for a given claim.
+	fn validate_connections(claim: T::Hash) -> Result<u32, http::Error> {
 		let test_image = String::from("Test Image");
 		let result = Self::send_request(test_image);
 		result
 	}
 
 	/// Add analytics for the video clip.
-	fn add_analytics(maybe_who: Option<T::AccountId>, claim: T::Hash, analytics_cid: u32) {
+	fn submit_payment(maybe_who: Option<T::AccountId>, claim: T::Hash, analytics_cid: u32) {
 
 		// here we are raising the NewAnalytics event
 		Self::deposit_event(Event::NewAnalytics { claim, analytics_cid, maybe_who });
