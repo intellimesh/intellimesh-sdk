@@ -522,7 +522,12 @@ members = [
 	"templates/parachain/node",
 	"templates/parachain/pallets/template",
 	"templates/parachain/runtime",
+	
+	"cortex/node",
+	"cortex/pallets/cortex-vision",
+	"cortex/runtime",
 ]
+
 default-members = ["polkadot", "substrate/bin/node/cli"]
 
 [workspace.lints.rust]
